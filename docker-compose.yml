@@ -1,0 +1,31 @@
+services:
+  redis:
+    image: redis:latest
+    container_name: free_proxy_redis_container
+    ports:
+      - "6379:6379"
+    restart: always
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: free_proxy_image
+    container_name: free_proxy_container
+    depends_on:
+      - redis
+    environment:
+      PYTHONUNBUFFERED: 1
+    restart: always
+
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    image: free_proxy_nginx_image
+    container_name: free_proxy_nginx_container
+    ports:
+      - "8080:80"
+    depends_on:
+      - web
+    restart: always

@@ -24,9 +24,13 @@ class ProxyApiTask:
             return False
 
     def random_get_proxy(self):
-        proxy_str = self.db_helper.random_get_data().decode('utf-8')
-        proxy_dict = json.loads(proxy_str)
-        return proxy_dict
+        try:
+            proxy_str = self.db_helper.random_get_data().decode("utf-8")
+            proxy_dict = json.loads(proxy_str)
+            return proxy_dict
+        except Exception as e:
+            logger.error(e)
+            return None
 
     def delete_a_proxy(self, proxy):
         result = self.db_helper.delete_a_proxy(proxy)

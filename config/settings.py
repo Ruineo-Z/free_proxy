@@ -1,13 +1,14 @@
 import os
 
-DB_CONNECT = "redis://localhost:6379/0"
+DB_CONNECT = "redis://redis:6379/0"
 
 PROXY_KEY_NAME = "proxy"
 
 PROXY_FUNC = [
+    "proxy_01",
     'proxy_02',
     # 'proxy_03',
-    # 'proxy_04',
+    'proxy_04',
     # 'proxy_05',
     'proxy_06',
     # 'proxy_07',
