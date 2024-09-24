@@ -1,4 +1,5 @@
 import asyncio
+import re
 
 from bs4 import BeautifulSoup
 
@@ -13,7 +14,7 @@ class FreeProxy:
         self.proxy_list = []
         self.lock = asyncio.Lock()
 
-    async def update_proxy_list(self, proxy_ip, proxy_port, https, elite_proxy):
+    async def update_proxy_list(self, proxy_ip, proxy_port, https, elite_proxy, proxy_source):
         async with self.lock:
             self.proxy_list.append(
                 {
@@ -21,17 +22,34 @@ class FreeProxy:
                     "proxy_port": proxy_port,
                     "proxy": f"{proxy_ip}:{proxy_port}",
                     "https": https,
-                    "elite_proxy": elite_proxy
+                    "elite_proxy": elite_proxy,
+                    "proxy_source": proxy_source
                 }
             )
 
-    async def check_proxy(self, proxy):
+    async def check_proxy(self, proxy_ip, proxy_port, https, elite_proxy, proxy_source):
+        def clean_proxy_data(proxy_data):
+            proxy_data = str(proxy_data)
+            try:
+                cleaned_string = proxy_data.encode().decode("unicode_escape")
+                proxy_data = cleaned_string.replace("\n", "").replace("\t", "")
+            except Exception as e:
+                logger.error(e)
+            return proxy_data
+
+        proxy_ip = clean_proxy_data(proxy_ip)
+        proxy_port = clean_proxy_data(proxy_port)
+
+        check_result = True
         try:
-            await self.http_helper.check_proxy(proxy)
-            return True
+            check_result = await self.http_helper.check_proxy(f"{proxy_ip}:{proxy_port}", https)
+            # pass
         except Exception as e:
+            check_result = False
             logger.error(e)
-            return False
+
+        if check_result:
+            await self.update_proxy_list(proxy_ip, proxy_port, https, elite_proxy, proxy_source)
 
     async def proxy_01(self):
         """web: https://free-proxy-list.net/"""
@@ -48,15 +66,10 @@ class FreeProxy:
                     proxy_anonymity = cells[4]
                     proxy_ip = cells[0]
                     proxy_port = cells[1]
-                    proxy = f"{proxy_ip}:{proxy_port}"
                     https = cells[6]
-                    check_result = False
-                    if https == "yes":
-                        check_result = await self.check_proxy(proxy)
-                    if check_result:
-                        proxy_https = True if https == "yes" else False
-                        proxy_elite = True if proxy_anonymity == "elite proxy" else False
-                        await self.update_proxy_list(proxy_ip, proxy_port, proxy_https, proxy_elite)
+                    proxy_https = True if https == "yes" else False
+                    proxy_elite = True if proxy_anonymity == "elite proxy" else False
+                    await self.check_proxy(proxy_ip, proxy_port, proxy_https, proxy_elite, "free-proxy-list")
 
     async def proxy_02(self, limit=500):
         """web: https://proxyscrape.com/free-proxy-list"""
@@ -81,9 +94,7 @@ class FreeProxy:
                     proxy_ip = proxy["ip"]
                     proxy_port = proxy["port"]
                     proxy = f"{proxy_ip}:{proxy_port}"
-                    check_result = await self.check_proxy(proxy)
-                    if check_result:
-                        await self.update_proxy_list(proxy_ip, proxy_port, True, True)
+                    await self.check_proxy(proxy_ip, proxy_port, True, True, "proxy_scrape")
 
     # def proxy_03(self):
     #     """web: https://hide.mn/en/proxy-list/?type=s#list"""
@@ -114,10 +125,7 @@ class FreeProxy:
                     if cells:
                         proxy_ip = cells[0]
                         proxy_port = cells[1]
-                        proxy = f"{proxy_ip}:{proxy_port}"
-                        check_result = self.check_proxy(proxy)
-                        if check_result:
-                            await self.update_proxy_list(proxy_ip, proxy_port, False, False)
+                        await self.check_proxy(proxy_ip, proxy_port, False, False, "89ip")
 
     # 与proxy_04为一个网站，弃用
     # async def proxy_05(self, num=50):
@@ -159,10 +167,7 @@ class FreeProxy:
                         if proxy_anonymity == "高匿" and proxy_https == "HTTPS":
                             proxy_ip = cells[0]
                             proxy_port = cells[1]
-                            proxy = f"{proxy_ip}:{proxy_port}"
-                            proxy_check_result = await self.check_proxy(proxy)
-                            if proxy_check_result:
-                                await self.update_proxy_list(proxy_ip, proxy_port, True, True)
+                            await self.check_proxy(proxy_ip, proxy_port, True, True, "ip3366")
 
     # def proxy_07(self, page_number=1):
     #     """web: https://www.kuaidaili.com/free/fps/"""
@@ -188,10 +193,7 @@ class FreeProxy:
                         if proxy_anonymity == "高匿" and proxy_https == "HTTP,HTTPS":
                             proxy_ip = cells[0]
                             proxy_port = cells[1]
-                            proxy = f"{proxy_ip}:{proxy_port}"
-                            proxy_check_result = await self.check_proxy(proxy)
-                            if proxy_check_result:
-                                await self.update_proxy_list(proxy_ip, proxy_port, True, True)
+                            await self.check_proxy(proxy_ip, proxy_port, True, True, "kxdaili")
 
     async def proxy_09(self):
         """web: https://www.docip.net/free"""
@@ -205,8 +207,12 @@ class FreeProxy:
                     proxy_https = proxy_data["proxy_type"]
                     if proxy_https == "1":  # 1为https, 2为http
                         proxy = proxy_data["ip"]
-                        proxy_check_result = await self.check_proxy(proxy)
-                        if proxy_check_result:
-                            proxy_ip = proxy.split(":")[0]
-                            proxy_port = proxy.split(":")[1]
-                            await self.update_proxy_list(proxy_ip, proxy_port, True, True)
+                        proxy_ip = proxy.split(":")[0]
+                        proxy_port = proxy.split(":")[1]
+                        await self.check_proxy(proxy_ip, proxy_port, True, True, "docip")
+
+
+if __name__ == '__main__':
+    client = FreeProxy()
+    data = asyncio.run(client.proxy_09())
+    print(client.proxy_list)

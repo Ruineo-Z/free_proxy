@@ -37,8 +37,12 @@ class ProxyApiTask:
         return result
 
     def get_all_proxy(self):
-        all_proxy = self.db_helper.get_all_data()
-        return all_proxy
+        try:
+            all_proxy = self.db_helper.get_all_data()
+            return all_proxy
+        except Exception as e:
+            logger.error(e)
+            return None
 
     def clear_proxy_table(self):
         result = self.db_helper.clear_table()

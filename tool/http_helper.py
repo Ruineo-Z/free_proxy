@@ -5,7 +5,7 @@ from functools import wraps
 import httpx
 
 from config import Log
-from config.settings import CHECK_WEB
+from config.settings import HTTPS_CHECK_WEB, HTTP_CHECK_WEB
 
 logger = Log("http_helper").log()
 
@@ -39,7 +39,6 @@ def retry(retry_times=3):
 
 class HttpHelper:
     def __init__(self):
-        self.proxies = None
         self.user_agent = [
             "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.1 (KHTML, like Gecko) Chrome/22.0.1207.1 Safari/537.1",
             "Mozilla/5.0 (X11; CrOS i686 2268.111.0) AppleWebKit/536.11 (KHTML, like Gecko) Chrome/20.0.1132.57 Safari/536.11",
@@ -77,10 +76,9 @@ class HttpHelper:
         if headers:
             self._header.update(headers)
 
-        proxies = proxies if proxies else self.proxies
         async with httpx.AsyncClient(proxies=proxies, verify=ssl, headers=self._header, timeout=timeout) as client:
-            response = await client.get(url, params=params, **kwargs)
             try:
+                response = await client.get(url, params=params, **kwargs)
                 response.raise_for_status()
                 return response
             except httpx.HTTPStatusError as http_err:
@@ -89,18 +87,33 @@ class HttpHelper:
                 logger.error(f"Other error occurred: {err}")  # 捕获其他错误
             return None
 
-    async def check_proxy(self, proxy):
-        check_url = random.choice(CHECK_WEB)
+    async def head(self, url, params=None, timeout=20, proxies=None, headers=None, ssl=False, **kwargs):
+        if headers:
+            self._header.update(headers)
+
+        async with httpx.AsyncClient(proxies=proxies, verify=ssl, headers=self._header, timeout=timeout) as client:
+            try:
+                response = await client.head(url, params=params, **kwargs)
+                response.raise_for_status()
+                return response
+            except httpx.HTTPStatusError as http_err:
+                logger.error(f"HTTP error occurred: {http_err}")
+            except Exception as e:
+                logger.error(f"Other error occurred: {str(e)}")
+            return None
+
+    async def check_proxy(self, proxy, https):
+        if https:
+            check_url = random.choice(HTTPS_CHECK_WEB)
+        else:
+            check_url = random.choice(HTTP_CHECK_WEB)
         proxies = {
             "http://": "http://" + proxy,
             "https://": "https://" + proxy
         }
-        try:
-            r = await self.get(check_url, proxies=proxies, timeout=5)
-            logger.info(f"Checking proxy {proxy} result {r}")
+
+        r = await self.head(check_url, proxies=proxies, timeout=5)
+        if r:
             return True
-        except httpx.HTTPStatusError as http_err:
-            logger.error(f"HTTP error occurred: {http_err}")
-        except Exception as err:
-            logger.error(f"Other error occurred: {err}")
-        return False
+        else:
+            return False
